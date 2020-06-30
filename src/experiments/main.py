@@ -80,7 +80,7 @@ def main():
 
     str_repr = str(opt_dict.items())
     hash_idx = hashlib.md5(str_repr.encode("utf-8")).hexdigest()
-    model_name = "mem_bert_" + str(hash_idx)
+    model_name = "petra_" + str(hash_idx)
 
     model_dir = path.join(args.base_model_dir, model_name)
     args.model_dir = model_dir
