@@ -21,7 +21,7 @@ def get_sequence_mask(sequence_len):
     """
     batch_size = sequence_len.size()[0]
     max_len = torch.max(sequence_len)
-    return (torch.arange(max_len).expand(batch_size, max_len).cuda()
+    return (torch.arange(max_len).expand(batch_size, max_len).to(sequence_len.device)
             < sequence_len.unsqueeze(1))
 
 

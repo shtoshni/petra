@@ -53,7 +53,7 @@ def main():
     parser.add_argument('-dropout_rate', default=0.5, type=float, help='Dropout rate')
     parser.add_argument('-ent_loss', default=0.1, type=float,
                         help='Entity prediction loss on ent probabilities.')
-    parser.add_argument('-max_epochs', default=75, type=int,
+    parser.add_argument('-max_epochs', default=100, type=int,
                         help='Maximum number of epochs')
     parser.add_argument('-max_num_stuck_epochs', default=15, type=int,
                         help='Maximum number of epochs without improvement.')

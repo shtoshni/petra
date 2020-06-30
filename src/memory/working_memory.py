@@ -6,10 +6,11 @@ EPS = 1e-8
 
 
 class WorkingMemory(nn.Module):
-    def __init__(self, mem_type='vanilla', num_cells=10,
+    def __init__(self, device='cpu', mem_type='vanilla', num_cells=10,
                  mem_size=300, mlp_size=300, dropout_rate=0.5,
                  key_size=20, usage_decay_rate=0.98, **kwargs):
         super(WorkingMemory, self).__init__()
+        self.device = device
         self.mem_type = mem_type
         self.num_cells = num_cells
         self.mem_size = mem_size
@@ -37,23 +38,23 @@ class WorkingMemory(nn.Module):
 
     def initialize_memory(self, batch_size):
         """Initialize the memory with the learned key and the null value part."""
-        init_mem = torch.zeros(batch_size, self.num_cells, self.mem_size).cuda()
+        init_mem = torch.zeros(batch_size, self.num_cells, self.mem_size).to(self.device)
         if self.mem_type == 'learned':
             init_mem = self.init_mem.unsqueeze(dim=0)
             init_mem = init_mem.repeat(batch_size, 1, 1)
         elif self.mem_type == 'key_val':
             init_val = torch.zeros(batch_size, self.num_cells,
-                                   self.mem_size - self.key_size).cuda()
+                                   self.mem_size - self.key_size).to(self.device)
             init_key = self.init_key.unsqueeze(dim=0)
             init_key = init_key.repeat(batch_size, 1, 1)
 
             init_mem = torch.cat([init_key, init_val], dim=2)
 
-        init_usage = torch.zeros(batch_size, self.num_cells).cuda()
+        init_usage = torch.zeros(batch_size, self.num_cells).to(self.device)
         return (init_mem, init_usage)
 
     def sample_gumbel(self, shape, eps=EPS):
-        U = torch.rand(shape).cuda()
+        U = torch.rand(shape).to(self.device)
         return -torch.log(-torch.log(U + eps) + eps)
 
     def pick_overwrite_cell(self, usage, sim_score):
@@ -78,7 +79,7 @@ class WorkingMemory(nn.Module):
             max_val = torch.max(overwrite_score, dim=-1, keepdim=True)[0]
             # Randomize the max
             index = torch.argmax(
-                (torch.empty(overwrite_score.shape).uniform_(0.01, 1).cuda()
+                (torch.empty(overwrite_score.shape).uniform_(0.01, 1).to(self.device)
                     * (overwrite_score == max_val).float()),
                 dim=-1, keepdim=True)
             y = torch.zeros_like(overwrite_score).scatter_(-1, index, 1.0)
@@ -89,7 +90,7 @@ class WorkingMemory(nn.Module):
         ent_score = self.entity_mlp(cur_hidden_state)
 
         # Perform a softmax over scores of 0 and ent_score
-        comb_score = torch.cat([torch.zeros_like(ent_score).cuda(),
+        comb_score = torch.cat([torch.zeros_like(ent_score).to(self.device),
                                 ent_score], dim=1)
         # Numerically stable softmax
         max_score, _ = torch.max(comb_score, dim=1, keepdim=True)
@@ -101,7 +102,7 @@ class WorkingMemory(nn.Module):
 
     def get_coref_mask(self, usage):
         """No coreference with empty cells."""
-        cell_mask = (usage > 0).float().cuda()
+        cell_mask = (usage > 0).float().to(self.device)
         return cell_mask
 
     def predict_coref_overwrite(self, mem_vectors, query_vector, usage,
@@ -119,13 +120,13 @@ class WorkingMemory(nn.Module):
         sim_score = torch.squeeze(sim_score, dim=-1)
 
         batch_size = query_vector.shape[0]
-        base_score = torch.zeros((batch_size, 1)).cuda()
+        base_score = torch.zeros((batch_size, 1)).to(self.device)
         comb_score = torch.cat([sim_score, base_score], dim=1)
         # Bx(M+1)
         coref_mask = self.get_coref_mask(usage)  # B x M
         # Coref only possible when the cell is active
         mult_mask = torch.cat([coref_mask,
-                               torch.ones((batch_size, 1)).cuda()], dim=-1)
+                               torch.ones((batch_size, 1)).to(self.device)], dim=-1)
         # Zero out the inactive cell scores and then add a big negative value
         comb_score = comb_score * mult_mask + (1 - mult_mask) * (-1e4)
 
@@ -218,7 +219,7 @@ class WorkingMemory(nn.Module):
 
             # Update usage
             updated_usage = torch.min(
-                torch.FloatTensor([1.0]).cuda(),
+                torch.FloatTensor([1.0]).to(self.device),
                 overwrite_prob + indv_coref_prob + self.usage_decay_rate * usage)
             usage_list.append(updated_usage)
             # Update memory

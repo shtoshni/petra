@@ -13,17 +13,18 @@ EPS = 1e-8
 class Controller(nn.Module):
     def __init__(self, cumm='sum', **kwargs):
         super(Controller, self).__init__()
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.cumm = cumm
         self.doc_encoder = BertEncoder(**kwargs)
-        self.memory_net = WorkingMemory(**kwargs)
+        self.memory_net = WorkingMemory(device=self.device, **kwargs)
         self.num_cells = self.memory_net.num_cells
 
     def get_ent_loss(self, batch_data, input_mask, ent_list):
         """Loss for predicting entities outside the labeled spans."""
         ent_pred = torch.transpose(torch.stack(ent_list), 0, 1)  # B x T
-        ent_pred.squeeze_(dim=2).cuda()
+        ent_pred.squeeze_(dim=2).to(self.device)
 
-        ent_weight = torch.ones_like(ent_pred).cuda()
+        ent_weight = torch.ones_like(ent_pred).to(self.device)
         ent_weight = ent_weight * input_mask
 
         # Mask out entity predictions for labeled spans
@@ -81,10 +82,10 @@ class Controller(nn.Module):
 
         # First time idx is t1 & second idx is t2
         prob_tens = torch.zeros(batch_size, time_steps,
-                                time_steps, num_cells).cuda()
+                                time_steps, num_cells).to(self.device)
 
         upper_tri_mask = torch.triu(
-            torch.ones(batch_size, time_steps, time_steps), diagonal=1).cuda()
+            torch.ones(batch_size, time_steps, time_steps), diagonal=1).to(self.device)
         upper_tri_mask.unsqueeze_(dim=3)
 
         for t in range(time_steps):
@@ -108,7 +109,7 @@ class Controller(nn.Module):
         no_overwrite_tens = torch.log(no_overwrite_tens)  # B x T x M
 
         # Maintains the summation of first t no_overwrite time steps.
-        sum_no_overwrite_tens = torch.zeros_like(no_overwrite_tens).cuda()
+        sum_no_overwrite_tens = torch.zeros_like(no_overwrite_tens).to(self.device)
         for t in range(time_steps):
             if t == 0:
                 sum_no_overwrite_tens[:, 0, :] = no_overwrite_tens[:, 0, :]
@@ -141,7 +142,7 @@ class Controller(nn.Module):
         return prob
 
     def get_model_outputs(self, text, text_length):
-        attn_mask = get_sequence_mask(text_length).cuda().float()
+        attn_mask = get_sequence_mask(text_length).to(self.device).float()
         encoded_doc = self.doc_encoder.encode_documents(text, attn_mask)
 
         hidden_state_list = torch.unbind(encoded_doc, dim=1)
@@ -161,7 +162,7 @@ class Controller(nn.Module):
         Encode a batch of excerpts.
         """
         text, text_length = batch_data.Text
-        text, text_length = text.cuda(), text_length.cuda()
+        text, text_length = text.to(self.device), text_length.to(self.device)
 
         outputs, input_mask = self.get_model_outputs(text, text_length)
         prob = self.predict_pairwise_prob(outputs)
@@ -171,7 +172,7 @@ class Controller(nn.Module):
 
         if self.training:
             # Weight of our loss
-            weight = torch.zeros_like(prob).cuda()
+            weight = torch.zeros_like(prob).to(self.device)
             y = torch.zeros_like(weight)
             for i in range(text.shape[0]):
                 for (ind1, ind2), (ent, label) in coref_pairs_labels[i].items():

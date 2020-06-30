@@ -23,7 +23,7 @@ logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 class Experiment:
     def __init__(self, data_dir=None, model_dir=None, best_model_dir=None,
                  # Training params
-                 max_epochs=75, max_num_stuck_epochs=15, inference=False, feedback=False,
+                 max_epochs=100, max_num_stuck_epochs=15, inference=False, feedback=False,
                  batch_size=32, seed=0, init_lr=1e-3, ent_loss=0.1,
                  # Slurm params
                  slurm_id=None,
@@ -54,7 +54,8 @@ class Experiment:
         # Initialize model and training metadata
         self.model_args = kwargs
         self.model = Controller(**kwargs)
-        self.model = self.model.cuda()
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model = self.model.to(device)
 
         self.optimizer = torch.optim.AdamW(
             self.model.parameters(), lr=init_lr, weight_decay=0)

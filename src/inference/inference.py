@@ -6,8 +6,10 @@ from gap_utils.gap import GAPDataset
 
 class Inference:
     def __init__(self, model_path):
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
         checkpoint = torch.load(model_path)
-        self.model = Controller(**checkpoint['model_args']).cuda()
+        self.model = Controller(**checkpoint['model_args']).to(self.device)
         self.model.load_state_dict(checkpoint['model'], strict=False)
         torch.set_rng_state(checkpoint['rng_state'])
 
@@ -27,9 +29,9 @@ class Inference:
         text, text_length = self.batchify_input_text(doc)
 
         # Convert to tensor and pass
-        text_length_tens = torch.tensor([len(text)]).cuda()
+        text_length_tens = torch.tensor([len(text)]).to(self.device)
         text_ids = self.tokenizer.convert_tokens_to_ids(text)
-        text_tens = torch.unsqueeze(torch.tensor(text_ids), dim=0).cuda()
+        text_tens = torch.unsqueeze(torch.tensor(text_ids), dim=0).to(self.device)
 
         # Get output from model
         outputs, _ = self.model.get_model_outputs(text_tens, text_length_tens)
