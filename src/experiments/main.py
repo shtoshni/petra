@@ -5,7 +5,6 @@ import hashlib
 import logging
 
 from collections import OrderedDict
-import subprocess
 from train_val import Experiment
 
 
@@ -23,8 +22,6 @@ def main():
     parser.add_argument('-base_model_dir',
                         default='/home/shtoshni/Research/petra/models',
                         help='Root folder storing model runs', type=str)
-    parser.add_argument('-model_path', default=None,
-                        help='Perform inference with provided model', type=str)
 
     # Document encoder
     parser.add_argument('-model_size', default='base', type=str,
@@ -91,15 +88,6 @@ def main():
     if not path.exists(best_model_dir):
         os.makedirs(best_model_dir)
 
-    # If not running on slurm, start a tensorboard job
-    if not args.slurm_id:
-        # Log directory for Tensorflow Summary
-        log_dir = path.join(model_dir, "logs")
-        if not path.exists(log_dir):
-            os.makedirs(log_dir)
-        p = subprocess.Popen(['tensorboard', '--logdir',  log_dir],
-                             stdout=subprocess.PIPE, stderr=None)
-
     config_file = path.join(model_dir, 'config')
     with open(config_file, 'w') as f:
         for key, val in opt_dict.items():
@@ -109,8 +97,7 @@ def main():
     try:
         Experiment(**vars(args))
     finally:
-        if not args.slurm_id:
-            p.kill()
+        pass
 
 
 if __name__ == "__main__":

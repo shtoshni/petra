@@ -1,6 +1,6 @@
 from collections import OrderedDict
+import torchtext
 from torchtext.data import Example, Field, Dataset
-import torchtext.data as data
 from transformers import BertTokenizer
 
 
@@ -145,7 +145,7 @@ class GAPDataset(Dataset):
             field_dict=field_dict, bert_tokenizer=bert_tokenizer,
             feedback=feedback)
 
-        train_iter, val_iter, test_iter = data.BucketIterator.splits(
+        train_iter, val_iter, test_iter = torchtext.data.BucketIterator.splits(
             (train, val, test), batch_size=batch_size,
             sort_within_batch=True, shuffle=True, repeat=False)
 
