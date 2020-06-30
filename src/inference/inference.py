@@ -8,10 +8,10 @@ class Inference:
     def __init__(self, model_path):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        checkpoint = torch.load(model_path)
+        checkpoint = torch.load(model_path, map_location=self.device)
         self.model = Controller(**checkpoint['model_args']).to(self.device)
-        self.model.load_state_dict(checkpoint['model'], strict=False,
-                                   map_location=self.device)
+        self.model.load_state_dict(
+            checkpoint['model'], strict=False)
         torch.set_rng_state(checkpoint['rng_state'])
 
         self.tokenizer = GAPDataset.load_bert_tokenizer()
