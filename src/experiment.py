@@ -6,6 +6,8 @@ import time
 import logging
 import torch
 import json
+import numpy as np
+from collections import OrderedDict
 
 import pytorch_utils.utils as utils
 from controller import Controller
@@ -21,7 +23,7 @@ logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 class Experiment:
     def __init__(self, data_dir=None, model_dir=None, best_model_dir=None,
                  # Training params
-                 max_epochs=75, max_num_stuck_epochs=15, eval=False, feedback=False,
+                 max_epochs=75, max_num_stuck_epochs=15, inference=False, feedback=False,
                  batch_size=32, seed=0, init_lr=1e-3, ent_loss=0.1,
                  # Slurm params
                  slurm_id=None,
@@ -34,6 +36,10 @@ class Experiment:
         self.feedback = feedback
         self.slurm_id = slurm_id
         self.ent_loss = ent_loss
+
+        # Set random seeds
+        np.random.seed(seed)
+        torch.manual_seed(seed)
 
         # Prepare data info
         self.train_iter, self.valid_iter, self.test_iter, self.itos \
@@ -59,29 +65,21 @@ class Experiment:
         self.train_info['epoch'] = 0
         self.train_info['val_perf'] = 0.0
         self.train_info['threshold'] = 0.0
-        self.train_info['global_steps'] = 0
         self.train_info['num_stuck_epochs'] = 0
 
-        if not eval:
-            self.initialize_setup(seed)
-            self.train()
-        # Finally evaluate model
-        self.final_eval(model_dir)
-
-    def initialize_setup(self, seed):
-        """Initialize model and training info."""
-        if not path.exists(self.model_path):
-            torch.manual_seed(seed)
-        else:
-            logging.info('Loading previous model: %s' % (self.model_path))
-            # Load model
-            self.load_model(self.model_path)
-
+        # Print model params
         utils.print_model_info(self.model)
+
+        if path.exists(self.model_path):
+            logging.info('Loading previous model: %s' % (self.model_path))
+            self.load_model(self.model_path)
+        self.train()
+        self.final_eval()
 
     def train(self):
         """Train model"""
         model = self.model
+        model.train()
         epochs_done = self.train_info['epoch']
         optimizer = self.optimizer
         scheduler = self.optim_scheduler
@@ -102,10 +100,8 @@ class Experiment:
                 # Reduce Gumbel-Softmax Temperature
                 self.model.memory_net.gumbel_temperature /= 2.0
             for train_batch in self.train_iter:
-                self.train_info['global_steps'] += 1
                 loss = model(train_batch)
-                total_loss = loss['coref']
-                total_loss += loss['ent'] * self.ent_loss
+                total_loss = loss['coref'] + loss['ent'] * self.ent_loss
 
                 # Gradient updates
                 optimizer.zero_grad()
@@ -116,7 +112,7 @@ class Experiment:
             # Update epochs done
             self.train_info['epoch'] = epoch + 1
             # Validation performance
-            val_loss, fscore, threshold, _ = self.eval_model()
+            fscore, threshold, _ = self.eval_model()
             scheduler.step(fscore)
 
             # Update model if validation performance improves
@@ -160,8 +156,6 @@ class Experiment:
 
         with torch.no_grad():
             all_vars = {}
-            total_loss = 0.0
-            total_weight = 0.0
             # Output file to write the outputs
             if final_eval:
                 suffix = (id_prefix + '-final')
@@ -176,19 +170,15 @@ class Experiment:
             for j, data_batch in enumerate(data_iter):
                 inst_id = data_batch.ID.tolist()
                 text, text_length = data_batch.Text
-                batch_loss, batch_weight, outputs, preds, y = model(data_batch)
-                total_loss += batch_loss.item()
-                total_weight += batch_weight.item()
+                outputs, preds, y = model(data_batch)
                 coref, overwrite, ent, usage =\
                     (outputs['coref'], outputs['overwrite'], outputs['ent'], outputs['usage'])
 
                 batch_size = len(inst_id)
-                a_ents = bert_tokens_to_str(text_ids=text,
-                                            token_ids=data_batch.A_ids[0],
-                                            itos=self.itos)
+                a_ents = bert_tokens_to_str(
+                    text_ids=text, token_ids=data_batch.A_ids[0], itos=self.itos)
                 b_ents = bert_tokens_to_str(
-                    text_ids=text, token_ids=data_batch.B_ids[0],
-                    itos=self.itos)
+                    text_ids=text, token_ids=data_batch.B_ids[0], itos=self.itos)
 
                 a_coref = data_batch.A_coref.tolist()
                 b_coref = data_batch.B_coref.tolist()
@@ -209,11 +199,9 @@ class Experiment:
                     }
 
         all_ids, all_labels, all_preds = zip(*agg_results)
-        avg_loss = total_loss/total_weight
         if threshold:
             max_fscore = get_fscore(
-                all_labels=all_labels, all_preds=all_preds,
-                threshold=threshold)
+                labels=all_labels, preds=all_preds, threshold=threshold)
         else:
             max_fscore, threshold = find_threshold(all_labels, all_preds)
 
@@ -244,9 +232,9 @@ class Experiment:
                 data_str = "var data=" + data_str
                 dump_f.write(data_str)
 
-        return avg_loss, max_fscore, threshold, output_file
+        return max_fscore, threshold, output_file
 
-    def final_eval(self, model_dir):
+    def final_eval(self):
         """Evaluate the model on train, dev, and test"""
         # Test performance  - Load best model
         self.load_model(self.best_model_path)
@@ -268,7 +256,7 @@ class Experiment:
             for split in ['Train', 'Valid', 'Test']:
                 logging.info('\n')
                 logging.info('%s' % split)
-                split_loss, split_f1, _, split_file = self.eval_model(
+                split_f1, _, split_file = self.eval_model(
                     split.lower(), threshold=threshold, final_eval=True)
                 logging.info('Calculated F1: %.3f' % split_f1)
                 logging.info('Output at: %s\n' % split_file)
@@ -291,20 +279,24 @@ class Experiment:
 
     def load_model(self, location):
         checkpoint = torch.load(location)
-        self.optimizer.load_state_dict(
-            checkpoint['optimizer_state_dict'])
-        self.optim_scheduler.load_state_dict(
-            checkpoint['scheduler_state_dict'])
+        self.model.load_state_dict(checkpoint['model'], strict=False)
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
+        self.optim_scheduler.load_state_dict(checkpoint['scheduler'])
         self.train_info = checkpoint['train_info']
         torch.set_rng_state(checkpoint['rng_state'])
 
     def save_model(self, location):
         """Save model"""
         save_dict = {}
+        model_state_dict = OrderedDict(self.model.state_dict())
+        for key in self.model.state_dict():
+            if 'bert.' in key:
+                del model_state_dict[key]
+        save_dict['model'] = model_state_dict
         save_dict.update({
             'train_info': self.train_info,
-            'optimizer_state_dict': self.optimizer.state_dict(),
-            'scheduler_state_dict': self.optim_scheduler.state_dict(),
+            'optimizer': self.optimizer.state_dict(),
+            'scheduler': self.optim_scheduler.state_dict(),
             'rng_state': torch.get_rng_state(),
         })
         torch.save(save_dict, location)

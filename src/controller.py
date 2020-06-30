@@ -16,6 +16,7 @@ class Controller(nn.Module):
         self.cumm = cumm
         self.doc_encoder = BertEncoder(**kwargs)
         self.memory_net = WorkingMemory(**kwargs)
+        self.num_cells = self.memory_net.num_cells
 
     def get_ent_loss(self, batch_data, input_mask, ent_list):
         """Loss for predicting entities outside the labeled spans."""
@@ -68,36 +69,13 @@ class Controller(nn.Module):
 
         return final_pred_list, final_label_list
 
-    def forward(self, batch_data):
+    def predict_pairwise_prob(self, outputs):
+        """Predict pairwise coref probability based on coref & overwrite probs.
+        Not that our loss calculations don't require calculating all pair probs.
+        But for short documents, all pair implementation is easier & faster.
         """
-        Encode a batch of excerpts.
-        """
-        coref_pairs_labels = get_all_coref_pairs(
-            batch_data, validation=not self.training)
-        text, text_length = batch_data.Text
-        text, text_length = text.cuda(), text_length.cuda()
-
-        attn_mask = get_sequence_mask(text_length).cuda().float()
-        encoded_output = self.doc_encoder.encode_documents(text, attn_mask)
-
-        # Now change the attn mask to input mask where we zero out [CLS] and [SEP]
-        input_mask = attn_mask
-        # [CLS] and [SEP] shouldn't correspond to entities
-        input_mask[:, 0] = 0  # [CLS]
-        input_mask[torch.arange(text.shape[0]), text_length - 1] = 0  # [SEP]
-
-        batch_size = encoded_output.shape[0]
-        hidden_state_list = torch.unbind(encoded_output, dim=1)
-        input_mask_list = torch.unbind(input_mask, dim=1)
-        outputs = self.memory_net(hidden_state_list, input_mask_list)
-
-        if outputs is None:
-            # NaN issue
-            return None
-
         coref_prob_list = outputs['coref']
         overwrite_prob_list = outputs['overwrite']
-        ent_list = outputs['ent']
 
         batch_size, num_cells = coref_prob_list[0].size()
         time_steps = len(coref_prob_list)
@@ -161,40 +139,63 @@ class Controller(nn.Module):
             prob, _ = torch.max(prob_tens, dim=3)
         prob = prob * torch.squeeze(upper_tri_mask, dim=-1)
 
-        # Weight of our loss
-        exp_input_mask = torch.unsqueeze(input_mask, dim=2).repeat(
-            1, 1, time_steps).float()
-        weight = torch.squeeze(upper_tri_mask, dim=3) * exp_input_mask
+        return prob
 
-        y = torch.zeros_like(weight)
-        for i in range(batch_size):
-            for (ind1, ind2), (ent, label) in coref_pairs_labels[i].items():
-                t1, t2 = ind1, ind2
-                if t1 > t2:
-                    t1, t2 = t2, t1
-                # Assign different weights to different labels
-                if ent == 'Same':
-                    weight[i, t1, t2] = 1.0  # Coref within same span
-                else:
-                    weight[i, t1, t2] = 5.0  # Coref across spans
-                    if (not label):
-                        weight[i, t1, t2] = 50  # Not coreferent
+    def forward(self, batch_data):
+        """
+        Encode a batch of excerpts.
+        """
+        text, text_length = batch_data.Text
+        text, text_length = text.cuda(), text_length.cuda()
 
-                y[i, t1, t2] = label
+        attn_mask = get_sequence_mask(text_length).cuda().float()
+        encoded_doc = self.doc_encoder.encode_documents(text, attn_mask)
 
-        coref_loss = torch.nn.functional.binary_cross_entropy_with_logits(
-            prob, y, weight=weight, reduction='sum')
-        total_weight = torch.sum(weight)
+        batch_size = encoded_doc.shape[0]
+        hidden_state_list = torch.unbind(encoded_doc, dim=1)
+
+        # Now change the attn mask to input mask where we zero out [CLS] and [SEP]
+        input_mask = attn_mask
+        # [CLS] and [SEP] shouldn't correspond to entities
+        input_mask[:, 0] = 0  # [CLS]
+        input_mask[torch.arange(text.shape[0]), text_length - 1] = 0  # [SEP]
+
+        input_mask_list = torch.unbind(input_mask, dim=1)
+        outputs = self.memory_net(hidden_state_list, input_mask_list)
+        prob = self.predict_pairwise_prob(outputs)
+
+        # GT pair labels
+        coref_pairs_labels = get_all_coref_pairs(batch_data, validation=not self.training)
 
         if self.training:
+            # Weight of our loss
+            weight = torch.zeros_like(prob).cuda()
+            y = torch.zeros_like(weight)
+            for i in range(batch_size):
+                for (ind1, ind2), (ent, label) in coref_pairs_labels[i].items():
+                    t1, t2 = ind1, ind2
+                    if t1 > t2:
+                        t1, t2 = t2, t1
+                    # Assign different weights to different labels
+                    if ent == 'Same':
+                        weight[i, t1, t2] = 1.0  # Coref within same span
+                    else:
+                        weight[i, t1, t2] = 5.0  # Coref across spans
+                        if (not label):
+                            weight[i, t1, t2] = 50  # Not coreferent
+
+                    y[i, t1, t2] = label
+
+            coref_loss = torch.nn.functional.binary_cross_entropy_with_logits(
+                prob, y, weight=weight, reduction='sum')
+            total_weight = torch.sum(weight)
+
             loss = {}
             loss['coref'] = coref_loss/total_weight
-            loss['ent'] = self.get_ent_loss(batch_data, input_mask, ent_list)
+            loss['ent'] = self.get_ent_loss(batch_data, input_mask, outputs['ent'])
             return loss
-
         else:
             prob = torch.exp(prob)
             final_pred_list, final_label_list = self.predict_output(
                 prob, coref_pairs_labels)
-            return (coref_loss, total_weight, outputs, final_pred_list,
-                    final_label_list)
+            return (outputs, final_pred_list, final_label_list)

@@ -45,15 +45,13 @@ def main():
                         help='Score accumulation across memory cells.')
 
     # Training params
-    parser.add_argument('--batch_size', '-bsize',
-                        help='Batch size', default=32, type=int)
+    parser.add_argument('-batch_size', help='Batch size', default=32, type=int)
     parser.add_argument('-feedback', default=False, action='store_true',
                         help='When true, do training on less data.')
-    parser.add_argument('-dropout_rate', default=0.5, type=float,
-                        help='Dropout rate')
+    parser.add_argument('-dropout_rate', default=0.5, type=float, help='Dropout rate')
     parser.add_argument('-ent_loss', default=0.1, type=float,
                         help='Entity prediction loss on ent probabilities.')
-    parser.add_argument('--max_epochs', '-mepochs', default=75, type=int,
+    parser.add_argument('-max_epochs', default=75, type=int,
                         help='Maximum number of epochs')
     parser.add_argument('-max_num_stuck_epochs', default=15, type=int,
                         help='Maximum number of epochs without improvement.')
@@ -61,10 +59,9 @@ def main():
                         help='Random seed to get different runs', type=int)
     parser.add_argument('-init_lr', help="Initial learning rate",
                         default=1e-3, type=float)
-    parser.add_argument('-eval', help="Evaluate model",
+    parser.add_argument('-inference', help="Do inference with model",
                         default=False, action="store_true")
-    parser.add_argument('-slurm_id', help="Slurm ID",
-                        default=None, type=str)
+    parser.add_argument('-slurm_id', help="Slurm ID", default=None, type=str)
 
     args = parser.parse_args()
 
