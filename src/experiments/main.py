@@ -6,7 +6,7 @@ import logging
 
 from collections import OrderedDict
 import subprocess
-from experiment import Experiment
+from train_val import Experiment
 
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
@@ -23,6 +23,8 @@ def main():
     parser.add_argument('-base_model_dir',
                         default='/home/shtoshni/Research/petra/models',
                         help='Root folder storing model runs', type=str)
+    parser.add_argument('-model_path', default=None,
+                        help='Perform inference with provided model', type=str)
 
     # Document encoder
     parser.add_argument('-model_size', default='base', type=str,
@@ -65,50 +67,56 @@ def main():
 
     args = parser.parse_args()
 
-    # Get model directory name
-    opt_dict = OrderedDict()
-    # Only include important options in hash computation
-    imp_opts = ['model_size', 'mlp_size', 'query_mlp',
-                'num_cells', 'mem_size', 'mem_type', 'usage_decay_rate',
-                'cumm', 'ent_loss', 'dropout_rate', 'max_num_stuck_epochs',
-                'batch_size', 'feedback', 'seed', 'init_lr']
-    for key, val in vars(args).items():
-        if key in imp_opts:
-            opt_dict[key] = val
+    # Check if performing inference
+    if args.inference:
+        if args.model_path is not None and path.exists(args.model_path):
+            pass
 
-    str_repr = str(opt_dict.items())
-    hash_idx = hashlib.md5(str_repr.encode("utf-8")).hexdigest()
-    model_name = "mem_bert_" + str(hash_idx)
+    else:
+        # Get model directory name
+        opt_dict = OrderedDict()
+        # Only include important options in hash computation
+        imp_opts = ['model_size', 'mlp_size', 'query_mlp',
+                    'num_cells', 'mem_size', 'mem_type', 'usage_decay_rate',
+                    'cumm', 'ent_loss', 'dropout_rate', 'max_num_stuck_epochs',
+                    'batch_size', 'feedback', 'seed', 'init_lr']
+        for key, val in vars(args).items():
+            if key in imp_opts:
+                opt_dict[key] = val
 
-    model_dir = path.join(args.base_model_dir, model_name)
-    args.model_dir = model_dir
-    best_model_dir = path.join(model_dir, 'best_models')
-    args.best_model_dir = best_model_dir
-    if not path.exists(model_dir):
-        os.makedirs(model_dir)
-    if not path.exists(best_model_dir):
-        os.makedirs(best_model_dir)
+        str_repr = str(opt_dict.items())
+        hash_idx = hashlib.md5(str_repr.encode("utf-8")).hexdigest()
+        model_name = "mem_bert_" + str(hash_idx)
 
-    # If not running on slurm, start a tensorboard job
-    if not args.slurm_id:
-        # Log directory for Tensorflow Summary
-        log_dir = path.join(model_dir, "logs")
-        if not path.exists(log_dir):
-            os.makedirs(log_dir)
-        p = subprocess.Popen(['tensorboard', '--logdir',  log_dir],
-                             stdout=subprocess.PIPE, stderr=None)
+        model_dir = path.join(args.base_model_dir, model_name)
+        args.model_dir = model_dir
+        best_model_dir = path.join(model_dir, 'best_models')
+        args.best_model_dir = best_model_dir
+        if not path.exists(model_dir):
+            os.makedirs(model_dir)
+        if not path.exists(best_model_dir):
+            os.makedirs(best_model_dir)
 
-    config_file = path.join(model_dir, 'config')
-    with open(config_file, 'w') as f:
-        for key, val in opt_dict.items():
-            logging.info('%s: %s' % (key, val))
-            f.write('%s: %s\n' % (key, val))
-
-    try:
-        Experiment(**vars(args))
-    finally:
+        # If not running on slurm, start a tensorboard job
         if not args.slurm_id:
-            p.kill()
+            # Log directory for Tensorflow Summary
+            log_dir = path.join(model_dir, "logs")
+            if not path.exists(log_dir):
+                os.makedirs(log_dir)
+            p = subprocess.Popen(['tensorboard', '--logdir',  log_dir],
+                                 stdout=subprocess.PIPE, stderr=None)
+
+        config_file = path.join(model_dir, 'config')
+        with open(config_file, 'w') as f:
+            for key, val in opt_dict.items():
+                logging.info('%s: %s' % (key, val))
+                f.write('%s: %s\n' % (key, val))
+
+        try:
+            Experiment(**vars(args))
+        finally:
+            if not args.slurm_id:
+                p.kill()
 
 
 if __name__ == "__main__":

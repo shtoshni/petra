@@ -10,7 +10,7 @@ import numpy as np
 from collections import OrderedDict
 
 import pytorch_utils.utils as utils
-from controller import Controller
+from controller.controller import Controller
 from gap_utils.gap import GAPDataset
 from gap_utils.data_utils import bert_tokens_to_str
 
@@ -52,6 +52,7 @@ class Experiment:
         self.best_model_path = path.join(best_model_dir, 'model.pth')
 
         # Initialize model and training metadata
+        self.model_args = kwargs
         self.model = Controller(**kwargs)
         self.model = self.model.cuda()
 
@@ -294,6 +295,7 @@ class Experiment:
                 del model_state_dict[key]
         save_dict['model'] = model_state_dict
         save_dict.update({
+            'model_args': self.model_args,
             'train_info': self.train_info,
             'optimizer': self.optimizer.state_dict(),
             'scheduler': self.optim_scheduler.state_dict(),

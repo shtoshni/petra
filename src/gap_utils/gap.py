@@ -125,7 +125,7 @@ class GAPDataset(Dataset):
         super(GAPDataset, self).__init__(examples, fields)
 
     @classmethod
-    def iters(cls, path, model='base', batch_size=32, batch_first=True,
+    def iters(cls, path, batch_size=32, batch_first=True,
               feedback=False, train_file='gap-development.tsv',
               dev_file='gap-validation.tsv', test_file='gap-test.tsv'):
         text_field = Field(sequential=True, use_vocab=False,
@@ -137,7 +137,7 @@ class GAPDataset(Dataset):
 
         field_dict = {'text': text_field, 'bool': bool_field}
 
-        bert_tokenizer = cls.load_bert_tokenizer(model=model)
+        bert_tokenizer = cls.load_bert_tokenizer()
         itos = bert_tokenizer.ids_to_tokens
 
         train, val, test = GAPDataset.splits(
@@ -152,7 +152,7 @@ class GAPDataset(Dataset):
         return (train_iter, val_iter, test_iter, itos)
 
     @classmethod
-    def load_bert_tokenizer(cls, model="base"):
+    def load_bert_tokenizer(cls):
         """Returns BERT tokenizer."""
         # Both BERT-base and BERT-large use the same vocabulary
         tokenizer = BertTokenizer.from_pretrained(

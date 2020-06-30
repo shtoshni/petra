@@ -33,7 +33,6 @@ class Controller(nn.Module):
                 for j in range(ids_time):
                     if ids[i, j]:
                         ent_weight[i, ids[i, j]] = 0
-        ent_weight[:, 0] = 1
 
         other_ents = torch.sum(ent_pred * ent_weight)/torch.sum(ent_weight)
         return other_ents
@@ -141,17 +140,10 @@ class Controller(nn.Module):
 
         return prob
 
-    def forward(self, batch_data):
-        """
-        Encode a batch of excerpts.
-        """
-        text, text_length = batch_data.Text
-        text, text_length = text.cuda(), text_length.cuda()
-
+    def get_model_outputs(self, text, text_length):
         attn_mask = get_sequence_mask(text_length).cuda().float()
         encoded_doc = self.doc_encoder.encode_documents(text, attn_mask)
 
-        batch_size = encoded_doc.shape[0]
         hidden_state_list = torch.unbind(encoded_doc, dim=1)
 
         # Now change the attn mask to input mask where we zero out [CLS] and [SEP]
@@ -162,6 +154,16 @@ class Controller(nn.Module):
 
         input_mask_list = torch.unbind(input_mask, dim=1)
         outputs = self.memory_net(hidden_state_list, input_mask_list)
+        return outputs, input_mask
+
+    def forward(self, batch_data):
+        """
+        Encode a batch of excerpts.
+        """
+        text, text_length = batch_data.Text
+        text, text_length = text.cuda(), text_length.cuda()
+
+        outputs, input_mask = self.get_model_outputs(text, text_length)
         prob = self.predict_pairwise_prob(outputs)
 
         # GT pair labels
@@ -171,7 +173,7 @@ class Controller(nn.Module):
             # Weight of our loss
             weight = torch.zeros_like(prob).cuda()
             y = torch.zeros_like(weight)
-            for i in range(batch_size):
+            for i in range(text.shape[0]):
                 for (ind1, ind2), (ent, label) in coref_pairs_labels[i].items():
                     t1, t2 = ind1, ind2
                     if t1 > t2:
