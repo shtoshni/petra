@@ -23,7 +23,7 @@ logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 class Experiment:
     def __init__(self, data_dir=None, model_dir=None, best_model_dir=None,
                  # Training params
-                 max_epochs=100, max_num_stuck_epochs=15, inference=False, feedback=False,
+                 max_epochs=100, max_num_stuck_epochs=15, eval=False, feedback=False,
                  batch_size=32, seed=0, init_lr=1e-3, ent_loss=0.1,
                  # Slurm params
                  slurm_id=None,
@@ -72,10 +72,12 @@ class Experiment:
         # Print model params
         utils.print_model_info(self.model)
 
-        if path.exists(self.model_path):
-            logging.info('Loading previous model: %s' % (self.model_path))
-            self.load_model(self.model_path)
-        self.train()
+        if not eval:
+            if path.exists(self.model_path):
+                logging.info('Loading previous model: %s' % (self.model_path))
+                self.load_model(self.model_path)
+            self.train()
+
         self.final_eval()
 
     def train(self):
@@ -122,7 +124,7 @@ class Experiment:
                 self.train_info['val_perf'] = fscore
                 self.train_info['threshold'] = threshold
                 logging.info('Saving best model')
-                self.save_model(self.best_model_path)
+                self.save_model(self.best_model_path, best_model=True)
 
                 # Reset num_stuck_epochs
                 self.train_info['num_stuck_epochs'] = 0
@@ -239,7 +241,7 @@ class Experiment:
     def final_eval(self):
         """Evaluate the model on train, dev, and test"""
         # Test performance  - Load best model
-        self.load_model(self.best_model_path)
+        self.load_model(self.best_model_path, best_model=True)
         logging.info("Loaded best model after epoch: %d" %
                      self.train_info['epoch'])
         logging.info("Threshold: %.2f" % self.train_info['threshold'])
@@ -279,15 +281,16 @@ class Experiment:
 
         sys.stdout.flush()
 
-    def load_model(self, location):
+    def load_model(self, location, best_model=False):
         checkpoint = torch.load(location)
         self.model.load_state_dict(checkpoint['model'], strict=False)
-        self.optimizer.load_state_dict(checkpoint['optimizer'])
-        self.optim_scheduler.load_state_dict(checkpoint['scheduler'])
-        self.train_info = checkpoint['train_info']
-        torch.set_rng_state(checkpoint['rng_state'])
+        if not best_model:
+            self.optimizer.load_state_dict(checkpoint['optimizer'])
+            self.optim_scheduler.load_state_dict(checkpoint['scheduler'])
+            self.train_info = checkpoint['train_info']
+            torch.set_rng_state(checkpoint['rng_state'])
 
-    def save_model(self, location):
+    def save_model(self, location, best_model=False):
         """Save model"""
         save_dict = {}
         model_state_dict = OrderedDict(self.model.state_dict())
@@ -295,12 +298,16 @@ class Experiment:
             if 'bert.' in key:
                 del model_state_dict[key]
         save_dict['model'] = model_state_dict
-        save_dict.update({
-            'model_args': self.model_args,
-            'train_info': self.train_info,
-            'optimizer': self.optimizer.state_dict(),
-            'scheduler': self.optim_scheduler.state_dict(),
-            'rng_state': torch.get_rng_state(),
-        })
+        save_dict['model_args'] = self.model_args
+        save_dict['train_info'] = self.train_info
+
+        if not best_model:
+            # Regular model saved during training.
+            # Don't need optimizers for inference, hence not saving these for best models.
+            save_dict.update({
+                'optimizer': self.optimizer.state_dict(),
+                'scheduler': self.optim_scheduler.state_dict(),
+                'rng_state': torch.get_rng_state(),
+            })
         torch.save(save_dict, location)
         logging.info("Model saved at: %s" % (location))
