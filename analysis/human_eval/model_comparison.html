@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="stylesheet" href="bootstrap.min.css">
+    <title>Memory models for GAP</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/5.16.0/d3.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.js"></script>
+
+    <!--script src="./data/10_key_val.js"></script-->
+    <script src="./gap_data.js"></script>
+    <script src="./model_logs.js"></script>
+
+    <style>
+        div-top {
+          margin-top: 10px;
+          margin-bottom: 10px;
+          margin-right: 0px;
+          margin-left: 0px;
+        }
+
+        div {
+          margin-top: 10px;
+          margin-bottom: -10px;
+          margin-right: 10px;
+          margin-left: 10px;
+        }
+
+        div-table {
+          margin-top: 20px;
+          margin-bottom: 20px;
+          margin-right: auto;
+          margin-left: auto;
+        }
+
+        p {
+          margin-top: 10px;
+          margin-bottom: 10px;
+          margin-right: 0px;
+          margin-left: 0px;
+        }
+</style>
+<h4>Instructions</h4>
+<ol>
+    <li> In this user study we will be comparing memory models at tracking people. </li>
+    <li> What are memory models? Memory models are neural networks coupled with an external memory which can be used for reading/writing.</li>
+    <li> <font color="red">(IMPORTANT)</font> What does it mean to track people for memory models? </li>
+    <ul>
+        <li> Detect all references to people which includes pronouns. </li>
+        <li> A 1-to-1 correspondence between people and memory cells i.e. all references corresponding to a person should be associated with the same memory cell AND each memory cell should be associated with at most 1 person. </li>
+    </ul>
+    <li> The memory models use the following scores (which are visualized) to indicate the tracking decisions:
+
+    <ul> <!--li> Person Probability: Probability that the token refers to a person. </li-->
+         <li> New Person Probability (Cell i): Probability that the token refers to a new person (not introduced in the text till now) and we start tracking it in cell i. </li>
+         <li> Coreference Probability (Cell i): Probability that the token refers to a person already being tracked in cell i. </li>
+    </ul>
+    </li>
+    <!--li> The memory models are trained with an end objective which while encourages tracking people, does not explicitly require it. </li-->
+    <li> The objective of this study is to compare the models on the interpretability of their memory logs i.e. are the models actually tracking entities or not. You can choose how you weigh the different requirements for tracking people (from 3). </li>
+    <li> For this study, you will compare two memory models with 8 memory cells (represented via 8 rows). The models are ordered randomly for each instance.</li>
+    <li> For each document, you can choose model A or model B, or stay neutral in case both the models perform similarly. </li>
+    <li> If the document is too long, the rangebar can be handy for zooming into the document. Rangebar is a thin horizontal bar, right below the X-axis ticks, which can be dragged from either side to change the corresponding endpoint.
+    <li> Following these instructions there are 10 documents which are hyperlinked to their corresponding memory log visualization page. Please fill your responses in <a href="https://docs.google.com/spreadsheets/d/1ftbPL8lNWzgM6M9SoqSv9ibLYtMz6pCvDe_aBsmIfJo/edit?usp=sharing">your eponymous Google sheets tabs here</a>.</li>
+</ol>
+<br/><br/>
+</head>
+
+<body>
+    <div class="instructions>
+
+    </div>
+    <div class="container">
+        <script src="./index.js"></script>
+    </div>
+    <!-- <div id="table"></div> -->
+
+</body>
+
+
+
+</html>
