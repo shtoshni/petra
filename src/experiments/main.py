@@ -17,10 +17,10 @@ def main():
 
     # Data and log directory
     parser.add_argument('-data_dir',
-                        default='/home/shtoshni/Research/petra/data',
+                        default='data/',
                         help='Root directory of data', type=str)
     parser.add_argument('-base_model_dir',
-                        default='/home/shtoshni/Research/petra/models',
+                        default='models/',
                         help='Root folder storing model runs', type=str)
 
     # Document encoder
