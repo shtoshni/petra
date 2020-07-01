@@ -8,7 +8,7 @@ Install python3 requirements:`pip install -r requirements`
 The gap files have been downloaded from the [GAP repo](https://github.com/google-research-datasets/gap-coreference)<br/>
 We created the diagnostic test of counting unique people in a document for which we annotated 100 GAP validation instances. The annotation file is [data/num_people.tsv](https://github.com/shtoshni92/petra/blob/master/data/num_people.tsv)
 
-## Training/Validation steps
+## Training/Validation
 ```
 git clone https://github.com/shtoshni92/petra.git
 cd petra/
@@ -22,6 +22,8 @@ Evaluation will be automatically done at the end of the training. Passing the `-
 * model_size: Specify the size of the BERT model between base and large.
 * mem_type: Type of memory cell architecture: 'vanilla' -> PeTra, 'learned' -> PeTra + Learned Init., 'key_val' -> PeTra + Fixed Key
 * num_cells: Vary the memory size
+
+For more hyperparams, check [src/experiments/main.py](https://github.com/shtoshni92/petra/blob/master/src/experiments/main.py)
 
 ## Inference - Colab
 [Here's a Colab notebook](https://colab.research.google.com/drive/17xT1QKCbj_tOFpiszHxuLkhjXLPp_hkd?usp=sharing) where we perform inference with a pretrained model and visualize the memory logs. 
