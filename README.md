@@ -25,6 +25,10 @@ Evaluation will be automatically done at the end of the training. Passing the `-
 
 For more hyperparams, check [src/experiments/main.py](https://github.com/shtoshni92/petra/blob/master/src/experiments/main.py)
 
+## Human Evaluation
+We conducted a human evaluation to test the interpretability of the models. <br/>
+In [analysis/human_eval](https://github.com/shtoshni92/petra/tree/master/analysis/human_eval) we share the evaluation interface code with a sample evaluation split. 
+
 ## Inference - Colab
 [Here's a Colab notebook](https://colab.research.google.com/drive/17xT1QKCbj_tOFpiszHxuLkhjXLPp_hkd?usp=sharing) where we perform inference with a pretrained model and visualize the memory logs. 
 
