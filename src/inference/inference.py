@@ -11,7 +11,6 @@ class Inference:
         checkpoint = torch.load(model_path, map_location=self.device)
         self.model = Controller(**checkpoint['model_args']).to(self.device)
         self.model.load_state_dict(checkpoint['model'], strict=False)
-        torch.set_rng_state(checkpoint['rng_state'])
 
         self.tokenizer = GAPDataset.load_bert_tokenizer()
 
