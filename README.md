@@ -25,6 +25,16 @@ Evaluation will be automatically done at the end of the training. Passing the `-
 
 For more hyperparams, check [src/experiments/main.py](https://github.com/shtoshni92/petra/blob/master/src/experiments/main.py)
 
+## Pretrained Models
+We release pretrained models (<20 MB in size) for a selected few configurations of the vanilla model. 
+* [BERT-base + 4 memory cells](https://ttic.uchicago.edu/~shtoshni/coref/petra_pretrained_models/vanilla_base_4.pth)
+* [BERT-base + 10 memory cells](https://ttic.uchicago.edu/~shtoshni/coref/petra_pretrained_models/vanilla_base_10.pth)
+* [BERT-base + 20 memory cells](https://ttic.uchicago.edu/~shtoshni/coref/petra_pretrained_models/vanilla_base_20.pth)
+* [BERT-large + 4 memory cells](https://ttic.uchicago.edu/~shtoshni/coref/petra_pretrained_models/vanilla_large_4.pth)
+* [BERT-large + 10 memory cells](https://ttic.uchicago.edu/~shtoshni/coref/petra_pretrained_models/vanilla_large_10.pth)
+* [BERT-large + 20 memory cells](https://ttic.uchicago.edu/~shtoshni/coref/petra_pretrained_models/vanilla_large_20.pth)
+
+
 ## Human Evaluation
 We conducted a human evaluation to test the interpretability of the models. <br/>
 In [analysis/human_eval](https://github.com/shtoshni92/petra/tree/master/analysis/human_eval) we share the evaluation interface code with a sample evaluation split. 
